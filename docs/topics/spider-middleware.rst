@@ -43,7 +43,7 @@ previous (or subsequent) middleware being applied.
 
 If you want to disable a builtin middleware (the ones defined in
 :setting:`SPIDER_MIDDLEWARES_BASE`, and enabled by default) you must define it
-in your project :setting:`SPIDER_MIDDLEWARES` setting and assign `None` as its
+in your project :setting:`SPIDER_MIDDLEWARES` setting and assign ``None`` as its
 value.  For example, if you want to disable the off-site middleware::
 
     SPIDER_MIDDLEWARES = {
@@ -54,11 +54,17 @@ value.  For example, if you want to disable the off-site middleware::
 Finally, keep in mind that some middlewares may need to be enabled through a
 particular setting. See each middleware documentation for more info.
 
+.. _custom-spider-middleware:
+
 Writing your own spider middleware
 ==================================
 
-Each middleware component is a Python class that defines one or more of the
-following methods:
+Each spider middleware is a Python class that defines one or more of the
+methods defined below.
+
+The main entry point is the ``from_crawler`` class method, which receives a
+:class:`~scrapy.crawler.Crawler` instance. The :class:`~scrapy.crawler.Crawler`
+object gives you access, for example, to the :ref:`settings <topics-settings>`.
 
 .. module:: scrapy.spidermiddlewares
 
@@ -78,7 +84,8 @@ following methods:
 
         If it raises an exception, Scrapy won't bother calling any other spider
         middleware :meth:`process_spider_input` and will call the request
-        errback.  The output of the errback is chained back in the other
+        errback if there is one, otherwise it will start the :meth:`process_spider_exception`
+        chain. The output of the errback is chained back in the other
         direction for :meth:`process_spider_output` to process it, or
         :meth:`process_spider_exception` if it raised an exception.
 
@@ -95,29 +102,28 @@ following methods:
         it has processed the response.
 
         :meth:`process_spider_output` must return an iterable of
-        :class:`~scrapy.http.Request`, dict or :class:`~scrapy.item.Item`
-        objects.
+        :class:`~scrapy.http.Request` objects and :ref:`item object
+        <topics-items>`.
 
         :param response: the response which generated this output from the
           spider
         :type response: :class:`~scrapy.http.Response` object
 
         :param result: the result returned by the spider
-        :type result: an iterable of :class:`~scrapy.http.Request`, dict
-          or :class:`~scrapy.item.Item` objects
+        :type result: an iterable of :class:`~scrapy.http.Request` objects and
+          :ref:`item object <topics-items>`
 
         :param spider: the spider whose result is being processed
         :type spider: :class:`~scrapy.spiders.Spider` object
 
-
     .. method:: process_spider_exception(response, exception, spider)
 
-        This method is called when a spider or :meth:`process_spider_input`
-        method (from other spider middleware) raises an exception.
+        This method is called when a spider or :meth:`process_spider_output`
+        method (from a previous spider middleware) raises an exception.
 
         :meth:`process_spider_exception` should return either ``None`` or an
-        iterable of :class:`~scrapy.http.Response`, dict or
-        :class:`~scrapy.item.Item` objects.
+        iterable of :class:`~scrapy.http.Request` objects and :ref:`item object
+        <topics-items>`.
 
         If it returns ``None``, Scrapy will continue processing this exception,
         executing any other :meth:`process_spider_exception` in the following
@@ -125,21 +131,20 @@ following methods:
         exception reaches the engine (where it's logged and discarded).
 
         If it returns an iterable the :meth:`process_spider_output` pipeline
-        kicks in, and no other :meth:`process_spider_exception` will be called.
+        kicks in, starting from the next spider middleware, and no other
+        :meth:`process_spider_exception` will be called.
 
         :param response: the response being processed when the exception was
           raised
         :type response: :class:`~scrapy.http.Response` object
 
         :param exception: the exception raised
-        :type exception: `Exception`_ object
+        :type exception: :exc:`Exception` object
 
         :param spider: the spider which raised the exception
         :type spider: :class:`~scrapy.spiders.Spider` object
 
     .. method:: process_start_requests(start_requests, spider)
-
-        .. versionadded:: 0.15
 
         This method is called with the start requests of the spider, and works
         similarly to the :meth:`process_spider_output` method, except that it
@@ -165,19 +170,15 @@ following methods:
         :type spider: :class:`~scrapy.spiders.Spider` object
 
     .. method:: from_crawler(cls, crawler)
-    
+
        If present, this classmethod is called to create a middleware instance
        from a :class:`~scrapy.crawler.Crawler`. It must return a new instance
        of the middleware. Crawler object provides access to all Scrapy core
        components like settings and signals; it is a way for middleware to
        access them and hook its functionality into Scrapy.
-    
+
        :param crawler: crawler that uses this middleware
        :type crawler: :class:`~scrapy.crawler.Crawler` object
-
-
-.. _Exception: https://docs.python.org/2/library/exceptions.html#exceptions.Exception
-
 
 .. _topics-spider-middleware-ref:
 
@@ -200,7 +201,7 @@ DepthMiddleware
 .. class:: DepthMiddleware
 
    DepthMiddleware is used for tracking the depth of each Request inside the
-   site being scraped. It works by setting `request.meta['depth'] = 0` whenever
+   site being scraped. It works by setting ``request.meta['depth'] = 0`` whenever
    there is no value previously set (usually just the first Request) and
    incrementing it by 1 otherwise.
 
@@ -212,7 +213,8 @@ DepthMiddleware
 
       * :setting:`DEPTH_LIMIT` - The maximum depth that will be allowed to
         crawl for any site. If zero, no limit will be imposed.
-      * :setting:`DEPTH_STATS` - Whether to collect depth stats.
+      * :setting:`DEPTH_STATS_VERBOSE` - Whether to collect the number of
+        requests for each depth.
       * :setting:`DEPTH_PRIORITY` - Whether to prioritize the requests based on
         their depth.
 
@@ -337,8 +339,6 @@ RefererMiddleware settings
 REFERER_ENABLED
 ^^^^^^^^^^^^^^^
 
-.. versionadded:: 0.15
-
 Default: ``True``
 
 Whether to enable referer middleware.
@@ -347,8 +347,6 @@ Whether to enable referer middleware.
 
 REFERRER_POLICY
 ^^^^^^^^^^^^^^^
-
-.. versionadded:: 1.4
 
 Default: ``'scrapy.spidermiddlewares.referer.DefaultReferrerPolicy'``
 
